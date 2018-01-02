@@ -1,0 +1,40 @@
+Test done on Kafka cluster of 3 brokers; topic with 2 partitions , and replication factor of 1.
+Use case: When each a Consumer takes too long to process the received message (and consequently
+Consumer takes long time between each invocation of poll() ) , then the GroupCoordinator will
+deem such Consumer to be dead, and triggers a re-balance operation. Re-balance is the process of
+reassigning a assumed dead Consumer's partition to some other free and alive Consumer.
+
+To test this, we will start 3 Consumer threads (within same Java process). 
+But, since we have only 2 partitions, only 2 of the Consumer threads will be receiving messages,
+until both of the 2 receiving consumer threads, starts taking long time to invoke poll(). The GroupCoordinator
+will assume that such a Consumer thread is dead, and then the 3rd redundant Consumer thread will start receiving
+messages from both the partitions (as that will be only consumer found alive by GroupCoordinator).
+
+Observed that:
+Consumer-1 thread started receiving data from partition-0
+Consumer-2 thread started receiving data from partition-1
+Consumer-3 also kept polling , but did not receive anything.
+
+After Consumer-1 and Consumer-2 thread each received one message each, they go on 20 mins sleep.Even before the 
+2 threads wake up, in the next 5 mins, the GroupCordinator reassigns both partitions to currently polling Consumer-3
+
+
+2017-10-27 07:41:20 INFO  Consumer:49 - CONSUMER-2-topic = topic1, partition = 1, offset = 498, key=1-END-KEY, msg=CHK-1
+2017-10-27 07:41:20 INFO  Consumer:49 - CONSUMER-1-topic = topic1, partition = 0, offset = 2502, key=0-END-KEY, msg=CHK-0
+
+2017-10-27 07:46:20 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic1-1, topic1-0] for group group1
+2017-10-27 07:46:20 INFO  Consumer:46 - CONSUMER-3 started receiving records :)
+2017-10-27 07:46:20 INFO  Consumer:49 - CONSUMER-3-topic = topic1, partition = 1, offset = 498, key=1-END-KEY, msg=CHK-1
+2017-10-27 08:21:20 INFO  Consumer:49 - CONSUMER-3-topic = topic1, partition = 0, offset = 2502, key=0-END-KEY, msg=CHK-0
+
+We also see that the partition = 1, offset = 498, key=1-END-KEY, msg=CHK-1 and partition = 0, offset = 2502, key=0-END-KEY, msg=CHK-0 
+got replayed to Consumer-3.This is to do with auto-commit feature.Default values are:
+enable.auto.commit = true
+auto.commit.interval.ms = 5000
+
+It means that the Consumer-1 and Consumer-2 died way before the auto commit could happen.
+
+
+
+
+

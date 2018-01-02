@@ -1,0 +1,71 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with 2 partitions , and replication factor of 1.
+Use case: Verify that previous invocation of asyncCommit will happen successfully only after subsequent invocation of poll.
+This also means that, the asyncCommit callback also will happen only after subsequent invocation of poll.
+Also, this use case demos that poll() API always retrieves from last committed offset
+(last committed offset during previous run of poll)
+
+Here, we are invoking both poll and then asyncCommit 3 times.So, first 2 invocation of asyncCommit will happen properly,
+as there are subsequent 2 invocation of poll() API. The last (3rd) invocation of asyncCommit will not happen smoothly
+as there is no further invocation of poll() API.
+
+Log excerpt:
+offset = 0 being received after poll.
+========================
+2017-11-02 15:56:58 INFO  Consumer:65 - CONSUMER-1 started receiving records :) of size = 1
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 0, key=0-END-KEY, msg=CHK-0
+2017-11-02 15:56:58 INFO  Consumer:72 - CONSUMER-1-topic =  about to commit async with pollCount = 1
+
+offsets = (1,2,3,4) being received after poll.
+=======================
+2017-11-02 15:56:58 INFO  Consumer:65 - CONSUMER-1 started receiving records :) of size = 4
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 1, key=1-END-KEY, msg=CHK-1
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 2, key=2-END-KEY, msg=CHK-2
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 3, key=3-END-KEY, msg=CHK-3
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 4, key=4-END-KEY, msg=CHK-4
+2017-11-02 15:56:58 INFO  Consumer:72 - CONSUMER-1-topic =  about to commit async with pollCount = 2
+
+Async call back on offset=0, as a result of poll API invoked for offsets = (1,2,3,4)
+=======================
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:135 - CONSUMER-1 onComplete: entered with commitedOffSets = {topic9-0=OffsetAndMetadata{offset=0, metadata=''}}
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:136 - CONSUMER-1 onComplete: entered with exception = null
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:145 - CONSUMER-1 onComplete: TP = topic = topic9, partition = 0, offset = 0 
+
+offsets = (5,6) being received after poll.
+=======================
+2017-11-02 15:56:58 INFO  Consumer:65 - CONSUMER-1 started receiving records :) of size = 2
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 5, key=5-END-KEY, msg=CHK-5
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 6, key=6-END-KEY, msg=CHK-6
+2017-11-02 15:56:58 INFO  Consumer:72 - CONSUMER-1-topic =  about to commit async with pollCount = 3
+
+Async call back on offset=(1,2,3,4) as a result of poll API invoked for offsets = (5,6)
+=======================
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:135 - CONSUMER-1 onComplete: entered with commitedOffSets = {topic9-0=OffsetAndMetadata{offset=4, metadata=''}}
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:136 - CONSUMER-1 onComplete: entered with exception = null
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:145 - CONSUMER-1 onComplete: TP = topic = topic9, partition = 0, offset = 4
+
+
+offsets = (7,8,9,10) being received after poll.
+=======================
+2017-11-02 15:56:58 INFO  Consumer:65 - CONSUMER-1 started receiving records :) of size = 4
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 7, key=7-END-KEY, msg=CHK-7
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 8, key=8-END-KEY, msg=CHK-8
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 9, key=9-END-KEY, msg=CHK-9
+2017-11-02 15:56:58 INFO  Consumer:68 - CONSUMER-1-topic = topic9, partition = 0, offset = 10, key=10-END-KEY, msg=CHK-10
+2017-11-02 15:56:58 INFO  Consumer:72 - CONSUMER-1-topic =  about to commit async with pollCount = 4
+
+Async call back on offset=(5,6) as a result of poll API invoked for offsets = (7,8,9,10)
+=======================
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:135 - CONSUMER-1 onComplete: entered with commitedOffSets = {topic9-0=OffsetAndMetadata{offset=6, metadata=''}}
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:136 - CONSUMER-1 onComplete: entered with exception = null
+2017-11-02 15:56:58 INFO  AsyncOffSetCommitCallBack:145 - CONSUMER-1 onComplete: TP = topic = topic9, partition = 0, offset = 6
+
+Log that showed up after restart:
+Expectation : offset = 7 onwards should get fetched by consumer. As offset 7 onwards there does not seem to be any commit happened.
+But, in reality somehow offset 7, 8, 9 were not received again. That means, they got committed. And offset=10 onwards got replayed.
+
+
+
+
+

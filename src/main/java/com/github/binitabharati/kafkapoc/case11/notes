@@ -1,0 +1,38 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with 2 partitions , and replication factor of 1.
+Use case: Turn off auto-commit (by default it is ON), and do commit explicitly.Turning off auto-
+commit and explicit committing ensures that duplicate messages are not replayed after a re-balance.
+Here, we are trying to use a combination of commitAsync and commitSync API.
+
+Consumer config was:
+enable.auto.commit = false
+
+
+Re-balance operation happens when one/more Consumers in a group dies. The partitions being consumed
+by such Consumers are re-assigned to other alive Consumers. This process is called re-balancing.
+
+Observation:
+Each of the 2 running consumers (Consumer-1 for partition-0 and Consumer-2 for partition-1) received 1 message each.
+And then commitAsync was invoked. While both threads slept, Consumer-3 woke up and started consuming messages for
+both partitions. Consumer-3 received duplicate msg for one partition ( ie one of the Consumer-1/Consumer-2's 
+commitAsync has not committed successfully. Solution to make commitAsync happen is to invoke poll()
+
+Reference: http://grokbase.com/t/kafka/users/1625ezxyc4/new-client-commitasync-problem
+The API of the new consumer is designed around an event loop in which all
+IO is driven by the poll() API. To make this work, you need to call poll()
+in a loop (see the javadocs for examples). So in this example, when you
+call commitAsync(), the request is basically just queued up to be sent. It
+won't actually be transmitted, however, until the next poll() is called.
+And it may not return until an even later call
+
+So, in our case Consumer-1 commitAsync happened successfully just because of Consumer-2's poll invocation.
+But,there was no other thread to invoke poll immediately after Consumer-2's commitAsync) 
+
+Open qstn:
+why does not commitAsync call back get invoked ?
+
+
+
+
+

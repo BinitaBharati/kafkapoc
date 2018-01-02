@@ -1,0 +1,11 @@
+Test done on Kafka cluster of 3 brokers; topic with 3 partitions , and replication factor of 2.
+Demo of the maximum size of message that Kafka Producer can Produce.This is given by property : message.max.bytes
+which is defaulted to 1 MB. So,if the Producer tries to produce a msg above this size, the broker will not accept
+such a msg and will throw error to the Producer.
+
+Caused by: org.apache.kafka.common.errors.RecordTooLargeException: The message is 1048668 bytes when serialized which is larger than the maximum request size you have configured with the max.request.size configuration.
+java.util.concurrent.ExecutionException: org.apache.kafka.common.errors.RecordTooLargeException: The message is 1048668 bytes when serialized which is larger than the maximum request size you have configured with the max.request.size configuration.
+        at org.apache.kafka.clients.producer.KafkaProducer$FutureFailure.<init>(KafkaProducer.java:1057)
+        at org.apache.kafka.clients.producer.KafkaProducer.doSend(KafkaProducer.java:764)
+        at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:701)
+        at org.apache.kafka.clients.producer.KafkaProducer.send(KafkaProducer.java:609)

@@ -1,0 +1,4 @@
+Use case: Demo that bringing down of zookeeper(s) while production/consumption is going on does not pose any issues.
+
+In a zoo keep cluster of 3 nodes, and kafka cluster also of 3 nodes, I brought down 2 of the zoo keeper nodes
+one by one, as production and consumption was happening. Did not get any errors on either producer/consumer log files.

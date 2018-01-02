@@ -1,0 +1,71 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with partition = 2, replication factor = 1. 
+Test done:
+Bring up 2 instances of consumers (1 for each partition)
+Bring up 1 instance of a producer that is writing messages to the topic.
+While the consumers were receiving messages, and the producer producing the messages,
+half way through that, stop the kafka broker where one of the partition's leader resides.
+
+Result:
+Demo: Illustrate scenario where messages fail to be produced due to the assigned partition (leader broker) being down amidst producing.
+
+Producer send message started getting error when trying to produce to the partition in the
+shut down broker (node3).Although producer continued to produce msg on the partition which lied on
+the up and running broker (node2).
+
+Weird thing:
+Both consumer instances stop receiving any messages, after one of the partition's broker (node3) was
+shut down.But, message was getting produced consistently to one of the working partitions of
+one of the up and running brokers (node2). Also, some messages that were being produced to the shut down
+broker failed to produce with the below Exception:
+java.util.concurrent.ExecutionException: org.apache.kafka.common.errors.TimeoutException: Expiring 1 record(s) for case162-1: 30025 ms has passed since batch creation plus linger time
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.valueOrError(FutureRecordMetadata.java:94)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:64)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:29)
+        at com.github.binitabharati.kafkapoc.case16.Producer.sendMsg(Producer.java:75)
+        at com.github.binitabharati.kafkapoc.case16.Producer.main(Producer.java:100)
+Caused by: org.apache.kafka.common.errors.TimeoutException: Expiring 1 record(s) for case162-1: 30025 ms has passed since batch creation plus linger time
+
+Why wasnt consumer poll for partition-0 not returning any data ?
+After the shut down broker was brought up, all the accumulated messages of the already up and
+running partition (broker : node2) also started getting consumed, along with new messages being produced
+for the newly brought uppartition(broker : node3) and also being consumed by the resepective consumer instance.
+
+Thing to note :
+All the while, one of the broker was done, the leader was set to -1. It did not reassign leader to
+one of the up and running brokers. ie we have 3 brokers here.
+
+Before bringing down one broker:
+vagrant@net1mc3:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic case162
+Topic:case162   PartitionCount:2        ReplicationFactor:1     Configs:
+        Topic: case162  Partition: 0    Leader: 2       Replicas: 2     Isr: 2
+        Topic: case162  Partition: 1    Leader: 3       Replicas: 3     Isr: 3
+        
+After bringing down node3 broker:
+vagrant@net1mc3:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic case162
+Topic:case162   PartitionCount:2        ReplicationFactor:1     Configs:
+        Topic: case162  Partition: 0    Leader: 2       Replicas: 2     Isr: 2
+        Topic: case162  Partition: 1    Leader: -1       Replicas: 3     Isr: 3
+        
+After bringing up node3 broker:
+vagrant@net1mc3:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic case162
+Topic:case162   PartitionCount:2        ReplicationFactor:1     Configs:
+        Topic: case162  Partition: 0    Leader: 2       Replicas: 2     Isr: 2
+        Topic: case162  Partition: 1    Leader: 3       Replicas: 3     Isr: 3
+
+
+Leader was -1 for 30 mins, till we brought back the Leader3. Wondering why node1 which was always up and running
+could not be picked as leader?
+
+=============================
+
+I think leader should have got automatically reassigned, but only one of the ISR would be assigned as new leader.
+But, in this case, since Leader and ISR were both the same node, ie node 3, thats why new leader election could not happen.
+Reference : https://community.hortonworks.com/questions/64905/kafka-leader-election.html
+
+
+
+
+
+

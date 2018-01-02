@@ -1,0 +1,100 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with partition = 3, replication factor = 3. 
+vagrant@net1mc1:~/app_logs$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic102
+Topic:topic102  PartitionCount:3        ReplicationFactor:2     Configs:
+        Topic: topic102 Partition: 0    Leader: 3       Replicas: 3,2   Isr: 2,3
+        Topic: topic102 Partition: 1    Leader: 1       Replicas: 1,3   Isr: 1,3
+        Topic: topic102 Partition: 2    Leader: 2       Replicas: 2,1   Isr: 2,1
+
+Test done:
+Bring up 3 instances of consumers (1 for each partition)
+Bring up 1 instance of a producer that is writing messages to the topic.
+While the consumers were receiving messages, and the producer producing the messages,
+half way through that, stop the kafka broker where one of the partition's leader resides.
+
+Result:
+Demo: Illustrate scenario where messages continues to be produced succesfully to the newly elected leader.
+The newly elected leader will be any one of the ISRs for a particular partition.
+
+In this test, we brought down node 3 (leader of partition 0 ) amidst production. We saw that there was no loss
+of messages while producing , as one of the partition-0's ISR (ie node 2) got selected as the new leader for
+partition-0, and the producer continued to happily produce to the newly elected leader.
+
+State of topic after bring down kafka on node3:
+vagrant@net1mc2:~/app_logs$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic102
+Topic:topic102  PartitionCount:3        ReplicationFactor:2     Configs:
+        Topic: topic102 Partition: 0    Leader: 2       Replicas: 3,2   Isr: 2
+        Topic: topic102 Partition: 1    Leader: 1       Replicas: 1,3   Isr: 1
+        Topic: topic102 Partition: 2    Leader: 2       Replicas: 2,1   Isr: 2,1
+
+
+Weird thing:
+All the consumer instances stop receiving any messages, after one of the partition's broker (node3) was
+shut down.But, message was getting produced consistently to other working partitions of
+the up and running brokers (node1 and node2). 
+
+Why wasnt consumer poll any of the partitions not returning any data ?
+After the shut down broker was brought up, all the accumulated messages of the already up and
+running partition also started getting consumed, along with new messages being produced
+for the newly brought uppartition(broker : node3) and also being consumed by the resepective consumer instance.
+
+
+State of topic after bring up kafka on node3:
+vagrant@net1mc1:~/app_logs$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic102
+Topic:topic102  PartitionCount:3        ReplicationFactor:2     Configs:
+        Topic: topic102 Partition: 0    Leader: 3       Replicas: 3,2   Isr: 2,3
+        Topic: topic102 Partition: 1    Leader: 1       Replicas: 1,3   Isr: 1,3
+        Topic: topic102 Partition: 2    Leader: 2       Replicas: 2,1   Isr: 2,1
+        
+Answer to why the consumers stopped consuming data after node3 was shutdown, and only after node3(net1mc3) was brought back up,
+the consumption resumed ?
+In Kafka , each comsumer group has something called as "Group coordinator". Now, this can be found out by viewing the Kafka
+Java consumer logs. The logs at start up of the consumer would print something like this :
+2017-12-28 09:11:35 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc3:9092 (id: 2147483646 rack: null) for group group1.
+2017-12-28 09:11:35 INFO  ConsumerCoordinator:419 - Revoking previously assigned partitions [] for group group1
+2017-12-28 09:11:35 INFO  AbstractCoordinator:432 - (Re-)joining group group1
+2017-12-28 09:11:35 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc3:9092 (id: 2147483646 rack: null) for group group1.
+
+In this case, the group cordinator was lying on node3 broker which was shut down.In absence of a group coordinator, the entire
+consumer group gets stalled. That is why this weird use case was seen.
+You will see logs like :
+org.apache.kafka.clients.consumer.internals.AbstractCoordinator - Marking the coordinator net1mc3:9092 (id: 2147483646 rack: null) dead for
+group group1
+ 
+
+
+Same set of Producer and Consumer was run on the below topic config:
+vagrant@net1mc3:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic1
+Topic:topic1    PartitionCount:3        ReplicationFactor:3     Configs:
+        Topic: topic1   Partition: 0    Leader: 3       Replicas: 3,2,1 Isr: 3,2,1
+        Topic: topic1   Partition: 1    Leader: 1       Replicas: 1,3,2 Isr: 1,3,2
+        Topic: topic1   Partition: 2    Leader: 2       Replicas: 2,1,3 Isr: 2,1,3
+        
+ According to Java consumer start up logs , group coordinator was:
+ 2017-12-28 09:11:35 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc1:9092 (id: 2147483646 rack: null) for group group1.
+2017-12-28 09:11:35 INFO  ConsumerCoordinator:419 - Revoking previously assigned partitions [] for group group1
+2017-12-28 09:11:35 INFO  AbstractCoordinator:432 - (Re-)joining group group1
+2017-12-28 09:11:35 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc1:9092 (id: 2147483646 rack: null) for group group1.
+
+root@net1mc3:~# /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic1
+Topic:topic1    PartitionCount:3        ReplicationFactor:3     Configs:
+        Topic: topic1   Partition: 0    Leader: 2       Replicas: 3,2,1 Isr: 2,1
+        Topic: topic1   Partition: 1    Leader: 1       Replicas: 1,3,2 Isr: 1,2
+        Topic: topic1   Partition: 2    Leader: 2       Replicas: 2,1,3 Isr: 2,1
+        
+So, in this case, even when node3 was shutdown, the consumer group happily kept consuming data, as the group coordinator was up and running
+on node1 (net1mc1).All the messages that the producer produced were happily received by the consumer group.
+
+Ref: https://dzone.com/articles/understanding-kafka-consumer-groups-and-consumer-l-1
+https://mail.google.com/mail/u/0/#search/Marking+the+coordinator+dead/15b45c4cf7cb024a
+
+In the next usecase (ie case19) we will learn how to allow automatic failover of consumer group coordinator!
+
+
+
+        
+
+
+
+

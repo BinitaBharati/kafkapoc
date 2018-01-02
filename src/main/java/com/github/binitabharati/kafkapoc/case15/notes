@@ -1,0 +1,15 @@
+
+
+Test done on Kafka cluster of 3 brokers; started topic with 1 partition , and replication factor of 1.
+Use case: Demo of ConsumerRebalanceListener. Start 2 consumers at once, since there is only 1 partition,
+only 1 consumer will get data.2nd consumer will keep going in a fruitless poll loop.
+Next: While producer is up and running, alter the topic, and  assign 1 more partition to the topic.
+We should see messages getting produced to the new partition, and the 2nd jobless consumer should pick up
+messages from the new partition. 
+
+Relevant logs:
+
+
+
+
+

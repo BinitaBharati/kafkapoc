@@ -1,0 +1,90 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with partition = 3, replication factor = 3. 
+vagrant@net1mc1:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic5
+Topic:topic5    PartitionCount:3        ReplicationFactor:3     Configs:
+        Topic: topic5   Partition: 0    Leader: 1       Replicas: 1,2,3 Isr: 1,2,3
+        Topic: topic5   Partition: 1    Leader: 2       Replicas: 2,3,1 Isr: 2,3,1
+        Topic: topic5   Partition: 2    Leader: 3       Replicas: 3,1,2 Isr: 3,1,2
+       
+       
+Demo: Automatic failover of consumer group coordinator.
+Ref : https://stackoverflow.com/questions/46817599/kafka-group-coordinator-fail-recovery-on-0-11-0-1
+
+Automatic failover of consumer group coordinator will happen if the RF of the internal topic __consumer_offset is > 1.
+By deafult the RF for his topic is set to 1. To update RF to 3 (as I had 3 node cluster), refer to : http://kafka.apache.org/documentation.html#basic_ops_increase_replication_factor
+
+Check RF of internal topic before increasing RF:
+vagrant@net1mc3:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic __consumer_offsets
+Topic:__consumer_offsets        PartitionCount:50       ReplicationFactor:1    Configs:segment.bytes=104857600,cleanup.policy=compact,compression.type=producer
+        Topic: __consumer_offsets       Partition: 0    Leader: 3       Replicas: 3     Isr: 3
+        Topic: __consumer_offsets       Partition: 1    Leader: 1       Replicas: 1     Isr: 1
+        Topic: __consumer_offsets       Partition: 2    Leader: 2       Replicas: 2     Isr: 2
+        Topic: __consumer_offsets       Partition: 3    Leader: 3       Replicas: 3     Isr: 3
+        Topic: __consumer_offsets       Partition: 4    Leader: 1       Replicas: 1     Isr: 1
+        Topic: __consumer_offsets       Partition: 5    Leader: 2       Replicas: 2     Isr: 2
+
+Basicall y u need to make a json file and invoke :
+vagrant@net1mc1:~$ kafka/bin/kafka-reassign-partitions.sh --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --reassignment-json-file increase_RF_partition.json --execute
+
+Check RF of internal topic after increasing RF:
+vagrant@net1mc1:~$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic __consumer_offsets
+Topic:__consumer_offsets        PartitionCount:50       ReplicationFactor:3    Configs:segment.bytes=104857600,cleanup.policy=compact,compression.type=producer
+        Topic: __consumer_offsets       Partition: 0    Leader: 3       Replicas: 1,2,3 Isr: 3,1,2
+        Topic: __consumer_offsets       Partition: 1    Leader: 1       Replicas: 1,2,3 Isr: 1,2,3
+        Topic: __consumer_offsets       Partition: 2    Leader: 2       Replicas: 1,2,3 Isr: 2,1,3
+        Topic: __consumer_offsets       Partition: 3    Leader: 3       Replicas: 1,2,3 Isr: 3,1,2
+        Topic: __consumer_offsets       Partition: 4    Leader: 1       Replicas: 1,2,3 Isr: 1,2,3
+        Topic: __consumer_offsets       Partition: 5    Leader: 2       Replicas: 1,2,3 Isr: 2,1,3
+        Topic: __consumer_offsets       Partition: 6    Leader: 3       Replicas: 1,2,3 Isr: 3,1,2
+        
+The consumer logs showed this :
+
+Initially after start up:
+017-12-28 10:39:52 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc1:9092 (id: 2147483646 rack: null) for group group1.
+2017-12-28 10:39:52 INFO  AbstractCoordinator:642 - Marking the coordinator net1mc1:9092 (id: 2147483646 rack: null) dead for group group1
+
+So, net1mc1 was initial coordinator. While producing and consuming was going on, I shutdown net1mc1 broker.
+vagrant@net1mc1:~/app_logs$ /home/vagrant/kafka/bin/kafka-topics.sh --describe --zookeeper 192.168.10.12:2181,192.168.10.13:2181,192.168.10.14:2181 --topic topic5
+Topic:topic5    PartitionCount:3        ReplicationFactor:3     Configs:
+        Topic: topic5   Partition: 0    Leader: 2       Replicas: 1,2,3 Isr: 2,3
+        Topic: topic5   Partition: 1    Leader: 2       Replicas: 2,3,1 Isr: 2,3
+        Topic: topic5   Partition: 2    Leader: 3       Replicas: 3,1,2 Isr: 3,2
+
+2017-12-28 10:39:52 WARN  ConsumerCoordinator:649 - Auto-commit of offsets {topic5-0=OffsetAndMetadata{offset=2675, metadata=''}} failed for group group1: Offset commit failed with a retriable exception. You should retry committing offsets. The underlying error was: The coordinator is not available.
+2017-12-28 10:39:52 WARN  NetworkClient:588 - Connection to node 1 could not be established. Broker may not be available.
+2017-12-28 10:39:52 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc1:9092 (id: 2147483646 rack: null) for group group1.
+2017-12-28 10:39:52 INFO  AbstractCoordinator:642 - Marking the coordinator net1mc1:9092 (id: 2147483646 rack: null) dead for group group1
+2017-12-28 10:39:52 WARN  NetworkClient:588 - Connection to node 1 could not be established. Broker may not be available.
+2017-12-28 10:39:54 INFO  AbstractCoordinator:597 - Discovered coordinator net1mc2:9092 (id: 2147483645 rack: null) for group group1.
+2017-12-28 10:39:54 INFO  AbstractCoordinator:642 - Marking the coordinator net1mc2:9092 (id: 2147483645 rack: null) dead for group group1
+2017-12-28 10:39:54 WARN  ConsumerCoordinator:649 - Auto-commit of offsets {topic5-0=OffsetAndMetadata{offset=2675, metadata=''}} failed for group group1: Offset commit failed with a retriable exception. You should retry committing offsets. The underlying error was: This is not the correct coordinator
+
+We can see that automatically net1mc2 got selected as the new group coordinator.Consumption of all succesfully produced messages happened succesfully after selection of new coordinator.
+On the producer end, few messages failed to be produced, and those specific ones werent received by the consumer.
+
+Exception on producer side, when the switch over was happening to the new leader (Notice that partition-0's leader was node1 ,which got switched to node2)
+2017-12-28 10:39:47 INFO  Producer:75 - Sending message with key=7806-END-KEY, msg = CHK-7806
+2017-12-28 10:39:47 INFO  Producer:88 - Sending message with key  =  7806, msg = CHK-7806 caused Exception after waiting for response for time = 0
+2017-12-28 10:39:47 ERROR Producer:89 - Opps
+java.util.concurrent.ExecutionException: org.apache.kafka.common.errors.NetworkException: The server disconnected before a response was received.
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.valueOrError(FutureRecordMetadata.java:94)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:64)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:29)
+        at com.github.binitabharati.kafkapoc.case18.Producer.sendMsg(Producer.java:76)
+        at com.github.binitabharati.kafkapoc.case18.Producer.main(Producer.java:103)
+Caused by: org.apache.kafka.common.errors.NetworkException: The server disconnected before a response was received.
+
+So, CHK-7806 msg was supposed to be produced to partition-0 exactly at the time node1 was shut down.
+
+
+
+
+
+
+
+        
+
+
+
+

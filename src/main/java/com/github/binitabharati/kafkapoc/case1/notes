@@ -1,0 +1,2 @@
+Test done on Kafka cluster of 3 brokers; topic with 3 partitions , and replication factor of 2.
+Basic use case demoing blocking Producer, and Consumer.

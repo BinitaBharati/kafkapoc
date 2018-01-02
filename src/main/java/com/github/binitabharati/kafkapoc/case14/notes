@@ -1,0 +1,40 @@
+
+
+Test done on Kafka cluster of 3 brokers; started topic with 2 partitions , and replication factor of 1.
+Use case: Demo of ConsumerRebalanceListener. First start only consumer-1, then both partitions should get
+assigned to that consumer.After some time lapse, start consumer-2. Rebalance should trigger, and 
+one of the consumer-1 partitions should get picked by new consumer-2.This works as expected.
+
+Relevant logs:
+We can see that consumer-1 got the partition = 1 revoked from it. Not sure why it also printed partition=0 as revoked though.
+2017-11-10 08:14:39 INFO  AutoConsumer1:109 - 9-AutoConsumer1 onPartitionsRevoked:  is triggered
+2017-11-10 08:14:39 INFO  AutoConsumer1:110 - 9-AutoConsumer1 onPartitionsRevoked:  Printing details of revoked topic partition started
+2017-11-10 08:14:39 INFO  AutoConsumer1:112 - 9-AutoConsumer1 onPartitionsRevoked: tp details; topic =  topic2, partition = 1
+2017-11-10 08:14:39 INFO  AutoConsumer1:112 - 9-AutoConsumer1 onPartitionsRevoked: tp details; topic =  topic2, partition = 0
+2017-11-10 08:14:39 INFO  AutoConsumer1:114 - 9-AutoConsumer1 onPartitionsRevoked:  Printing details of revoked topic partition ended
+
+We can see that consumer-2 got the partition = 1 assigned, and no partition was revoked from it.
+2017-11-10 08:14:37 INFO  AutoConsumer2:105 - 11-AutoConsumer2 onPartitionsRevoked:  is triggered
+2017-11-10 08:14:37 INFO  AutoConsumer2:106 - 11-AutoConsumer2 onPartitionsRevoked:  Printing details of revoked topic partition started
+
+2017-11-10 08:14:39 INFO  AutoConsumer2:91 - 11-AutoConsumer2 onPartitionsAssigned:  is triggered
+2017-11-10 08:14:39 INFO  AutoConsumer2:92 - 11-AutoConsumer2 onPartitionsAssigned:  Printing details of assigned topic partition started
+2017-11-10 08:14:39 INFO  AutoConsumer2:94 - 11-AutoConsumer2 onPartitionsAssigned: tp details; topic =  topic2, partition = 1
+2017-11-10 08:14:39 INFO  AutoConsumer2:96 - 11-AutoConsumer2 onPartitionsAssigned:  Printing details of assigned topic partition ended
+
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 437, key=388-END-KEY, msg=CHK-388
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 438, key=391-END-KEY, msg=CHK-391
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 439, key=392-END-KEY, msg=CHK-392
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 440, key=393-END-KEY, msg=CHK-393
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 441, key=395-END-KEY, msg=CHK-395
+2017-11-10 08:14:39 INFO  AutoConsumer2:65 - 11-AutoConsumer2--topic = topic2, partition = 1, offset = 442, key=398-END-KEY, msg=CHK-398
+
+We can also see that consumer-1 continued to get messages from partition=0
+2017-11-10 08:14:39 INFO  AutoConsumer1:68 - 9-AutoConsumer1--topic = topic2, partition = 0, offset = 451, key=389-END-KEY, msg=CHK-389
+2017-11-10 08:14:39 INFO  AutoConsumer1:68 - 9-AutoConsumer1--topic = topic2, partition = 0, offset = 452, key=390-END-KEY, msg=CHK-390
+2017-11-10 08:14:39 INFO  AutoConsumer1:68 - 9-AutoConsumer1--topic = topic2, partition = 0, offset = 453, key=394-END-KEY, msg=CHK-394
+2017-11-10 08:14:39 INFO  AutoConsumer1:68 - 9-AutoConsumer1--topic = topic2, partition = 0, offset = 454, key=396-END-KEY, msg=CHK-396
+
+
+
+

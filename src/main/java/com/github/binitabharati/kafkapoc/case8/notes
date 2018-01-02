@@ -1,0 +1,21 @@
+Test done on Kafka cluster of 3 brokers; topic with 2 partitions , and replication factor of 1.
+Demo that ordering guarantee on the same partition implicitly also means a single Producer thread.
+No  of consumers started : 2, each consumer got assigned 1 partition.
+I started 2 consumers sequentially, so once I started consumer1, this prints in its logs:
+==============
+consumer1:
+2017-10-25 10:59:44 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-1, topic2-0] for group group1
+==============
+Then I started consumer2, this prints in log of both consumers:
+==============
+consumer1:
+2017-10-25 11:06:19 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-0] for group group1
+consumer2:
+2017-10-25 11:06:19 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-1] for group group1
+==============
+
+But, while producing message I used a common key for all the messages, so that all the messages end up being consumed
+by only 1 of these consumers.But, the producer was multi-threaded, which resulted in loss of message ordering, inspite
+of being in the same partition.So, ordering guarantee on the same partition implicitly also means a single Producer thread.
+
+

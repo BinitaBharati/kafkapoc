@@ -1,0 +1,19 @@
+Test done on Kafka cluster of 3 brokers; topic with 2 partitions , and replication factor of 1.
+Demo that using the same ProducerRecord key will force the message to go in the same partition as other messages with
+the same ProducerRecord key.Message ordering will be maintained within each partition, so consumer will be able to fetch
+the messages in the same order as the Producer produced it. 
+No  of consumers started : 2, each consumer got assigned 1 partition.
+I started 2 consumers sequentially, so once I started consumer1, this prints in its logs:
+==============
+consumer1:
+2017-10-25 10:59:44 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-1, topic2-0] for group group1
+==============
+Then I started consumer2, this prints in log of both consumers:
+==============
+consumer1:
+2017-10-25 11:06:19 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-0] for group group1
+consumer2:
+2017-10-25 11:06:19 INFO  ConsumerCoordinator:262 - Setting newly assigned partitions [topic2-1] for group group1
+==============
+
+

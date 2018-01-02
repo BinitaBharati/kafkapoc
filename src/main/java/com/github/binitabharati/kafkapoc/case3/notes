@@ -1,0 +1,85 @@
+Test done on Kafka cluster of 3 brokers; topic with 3 partitions , and replication factor of 2.
+This use case demonstrates that its possible to send large size messages.
+
+The below error message keeps coming for some msges. (This scenario did not re-appear, once I cleaned up my disk, these errors were visible when Kafka was performing 
+under very low free disk space)
+Eg, msg with Key = 0 got delivered in 0 s, but this exception came on sending msg with key = 1. Then, it was fine while sending msg with key = 2 with delivery time of 0s.
+
+Caused by: org.apache.kafka.common.errors.TimeoutException: Expiring 1 record(s) for case2-2: 30038 ms has passed since batch creation plus linger time
+java.util.concurrent.ExecutionException: org.apache.kafka.common.errors.TimeoutException: Expiring 1 record(s) for case2-1: 30050 ms has passed since batch creation plus linger time
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.valueOrError(FutureRecordMetadata.java:94)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:64)
+        at org.apache.kafka.clients.producer.internals.FutureRecordMetadata.get(FutureRecordMetadata.java:29)
+        at com.github.binitabharati.kafkapoc.case3.Producer.sendMsg(Producer.java:65)
+        at com.github.binitabharati.kafkapoc.case3.Producer.main(Producer.java:96)
+        
+Batch size best practises:
+        https://community.hortonworks.com/articles/80813/kafka-best-practices-1.html
+        
+ https://stackoverflow.com/questions/34794260/when-does-the-apache-kafka-client-throw-a-batch-expired-exception
+ Solution : From kafka 0.10.2 onwards new property has been introduced request.timeout.ms (that defaults to 30s)
+ This property had to be added (in the Producer client code) and I set it to 60s. 
+ 
+Default batch.size is 16k bytes, but my each msg size was itself 60k byte.Also, default linger.ms is 0.So, there was no question of batching and neither
+batch send wait time (given by linger.ms).
+So, only by increasing request.timeout.ms , we could overcome this issue.
+ 
+ Producer config values:
+ 2017-10-03 11:07:11 INFO  ProducerConfig:223 - ProducerConfig values:
+        acks = 1
+        batch.size = 16384
+        bootstrap.servers = [192.168.10.12:9092, 192.168.10.13:9092, 192.168.10.14:9092]
+        buffer.memory = 33554432
+        client.id =
+        compression.type = none
+        connections.max.idle.ms = 540000
+        enable.idempotence = false
+        interceptor.classes = null
+        key.serializer = class org.apache.kafka.common.serialization.StringSerializer
+        linger.ms = 0
+        max.block.ms = 60000
+        max.in.flight.requests.per.connection = 5
+        max.request.size = 1048576
+        metadata.max.age.ms = 300000
+        metric.reporters = []
+        metrics.num.samples = 2
+        metrics.recording.level = INFO
+        metrics.sample.window.ms = 30000
+        partitioner.class = class org.apache.kafka.clients.producer.internals.DefaultPartitioner
+        receive.buffer.bytes = 32768
+        reconnect.backoff.max.ms = 1000
+        reconnect.backoff.ms = 50
+        request.timeout.ms = 60000
+        retries = 0
+        retry.backoff.ms = 100
+        sasl.jaas.config = null
+        sasl.kerberos.kinit.cmd = /usr/bin/kinit
+        sasl.kerberos.min.time.before.relogin = 60000
+        sasl.kerberos.service.name = null
+        sasl.kerberos.ticket.renew.jitter = 0.05
+        sasl.kerberos.ticket.renew.window.factor = 0.8
+        sasl.mechanism = GSSAPI
+        security.protocol = PLAINTEXT
+        send.buffer.bytes = 131072
+        ssl.cipher.suites = null
+        ssl.enabled.protocols = [TLSv1.2, TLSv1.1, TLSv1]
+        ssl.endpoint.identification.algorithm = null
+        ssl.key.password = null
+        ssl.keymanager.algorithm = SunX509
+        ssl.keystore.location = null
+        ssl.keystore.password = null
+        ssl.keystore.type = JKS
+        ssl.protocol = TLS
+        ssl.provider = null
+        ssl.secure.random.implementation = null
+        ssl.trustmanager.algorithm = PKIX
+        ssl.truststore.location = null
+        ssl.truststore.password = null
+        ssl.truststore.type = JKS
+        transaction.timeout.ms = 60000
+        transactional.id = null
+        value.serializer = class org.apache.kafka.common.serialization.StringSerializer
+        
+        
+ 
+ 

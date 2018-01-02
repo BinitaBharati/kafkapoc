@@ -1,0 +1,8 @@
+Test done on Kafka cluster of 3 brokers; topic with 3 partitions , and replication factor of 2.
+Use case to demo that async producer is of no use without invoking get on the Future. This is because, just plain invocation of
+kafkaProd.send(pr) will not throw any Exception, even when the send was not successful. Producer client will assume that all msges
+got produced successfully, whereas consumer will not receive all the messages.
+
+
+https://www.quora.com/Can-multiple-kafka-producers-produce-the-same-topic-with-the-same-partition-at-the-same-time
+

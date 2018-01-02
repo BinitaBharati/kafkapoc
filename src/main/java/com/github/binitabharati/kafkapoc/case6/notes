@@ -1,0 +1,7 @@
+Test done on Kafka cluster of 3 brokers; topic with 3 partitions , and replication factor of 2.
+Use case to demo that async producer should be called by invoking get on the Future. This is because, just plain invocation of
+kafkaProd.send(pr) will not throw any Exception, even when the send was not successful. Producer client will assume that all msges
+got produced successfully, whereas consumer will not receive all the messages.So, u should also invoke a get() on kafkaProd.send(pr),
+so that you can know the actual status of the produced msg. If u are worried abt get being a blocking call, just use ,multiple Producer
+threads. But, remeber that using multiple producer threads may screw with message ordering (in case you r worried abt message ordering)
+

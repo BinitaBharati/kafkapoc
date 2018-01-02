@@ -1,0 +1,23 @@
+
+
+Test done on Kafka cluster of 3 brokers; topic with 1 partitions , and replication factor of 1.
+Use case: Demo of ConsumerRebalanceListener. ie , in earlier cases, we saw that if Consumer does not
+invoke poll often, the GroupCoordinator will deem it dead, and start a re-balance operation.We also saw that
+comitSync is blocking, and is a sure shot way to commit, unlike commitAsync call.But, under conditions when
+auto-commit is disabled, we should not be invoking commitSync too frequently. So, what is the ideal way to
+invoke commitSync. commitSync should be invoked when a re-balance is about to happen.So, if we implement
+ConsumerRebalanceListener, we will know exactly when re-balance is about to happen.And we can commitSync there.
+
+Issue: Tried simulating rebalance by not invoking poll API. But, then ConsumerRebalanceListener APIs also get called
+in same thread as poll API. So, if poll API thread is somehow stalled (by doing Thread.sleep etc), even the ConsumerRebalanceListener
+APIs is not getting triggered.Finally, tried to manually assign partition using old Consumer.assign API.But, ConsumerRebalanceListener APIs
+never got triggered. And, finally, both the Consumers (ie the one that implemented ConsumerRebalanceListener), and the one that invokes
+Consumer.assign, both started getting the same messages.Initially, the autoconsumer got about 24 messages, and from 25th messages both
+auto and manual consumers started receiving identical messages (even though num of partitions = 1).
+
+Also, https://kafka.apache.org/0110/javadoc/index.html?org/apache/kafka/clients/consumer/KafkaConsumer.html assign API doc says that
+one should not mix up ConsumerRebalanceListener and assign API.
+
+
+
+
