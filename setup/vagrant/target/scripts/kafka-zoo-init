@@ -1,0 +1,70 @@
+#! /bin/sh
+
+set -x
+ZK_PATH=/usr/share/zookeeper
+KAFKA_PATH=/home/vagrant/kafka
+
+# The below is required to store the process id of the zookeeper and kafka services
+ZPIDFILE="/var/run/zookeeper.pid"
+KPIDFILE="/var/run/kafka.pid"
+
+# See how we were called.
+case "$1" in
+  start)
+        # Start daemon.
+        echo "Starting Zookeeper";
+        nohup $ZK_PATH/bin/zkServer.sh start &
+        PID=$!
+        echo $PID > $ZPIDFILE
+        # Sleep for some time in secs, so that all the zookeeper servers get succesfully started across the cluster.
+        sleep 20
+        echo "Starting Kafka";
+        nohup $KAFKA_PATH/bin/kafka-server-start.sh $KAFKA_PATH/config/server.properties > $KAFKA_PATH/kafka.log 2>&1 &
+        PID=$!
+        echo $PID > $KPIDFILE
+        ;;
+  stop)
+        # Stop daemons.
+        echo "Shutting down Zookeeper";
+        if [ ! -f $ZPIDFILE ]; then
+	    echo "Zookeeper already stopped!"
+	  else
+	    PID=`cat $ZPIDFILE`
+	    kill -9 $PID
+	    rm -f $ZPIDFILE
+	    echo "Stopped Zookeeper"
+  	fi
+        echo "Shutting down Kafka";
+	if [ ! -f $KPIDFILE ]; then
+	    echo "Kafka already stopped!"
+	else
+	    PID=`cat $KPIDFILE`
+	    kill -9 $PID
+	    rm -f $KPIDFILE
+	    echo "Stopped Kafka"
+  	fi
+        ;;
+  restart)
+        $0 stop
+        sleep 2
+        $0 start
+        ;;
+  status)
+        if [ ! -f $ZPIDFILE ]; then
+		    echo "Zookeeper is not running!"
+	else
+		   echo "Zookeeper is running!"
+  	fi
+  	
+  	if [ ! -f $KPIDFILE ]; then
+		echo "Kafka is not running!"
+	else
+		echo "Kafka is running!"
+  	fi
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac
+
+exit 0
